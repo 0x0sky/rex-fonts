@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  font-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install tooling
+        run: python -m pip install -r requirements-dev.txt
+      - name: Compile Python sources
+        run: python -m compileall -q rexify.py tools
+      - name: Validate tracked ReX font
+        run: python tools/check_font_license.py out/stix2/rex-stix2.otf
+      - name: Validate future rexify output
+        run: |
+          mkdir -p "$RUNNER_TEMP/rexified/"
+          python rexify.py master/STIX2Math.otf "$RUNNER_TEMP/rexified/"
+          python tools/check_font_license.py "$RUNNER_TEMP/rexified/STIX2Math.otf"
