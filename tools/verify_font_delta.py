@@ -14,8 +14,10 @@ def verify_delta(before_path: str, after_path: str) -> None:
     before = TTFont(before_path, recalcBBoxes=False, recalcTimestamp=False, lazy=True)
     after = TTFont(after_path, recalcBBoxes=False, recalcTimestamp=False, lazy=True)
 
-    before_tables = set(before.keys())
-    after_tables = set(after.keys())
+    # Use only physical sfnt directory entries. TTFont.keys() also exposes the
+    # synthetic GlyphOrder pseudo-table, which has no serialized table data.
+    before_tables = set(before.reader.keys())
+    after_tables = set(after.reader.keys())
     if before_tables != after_tables:
         raise ValueError(
             "OpenType table set changed: {!r} != {!r}".format(
