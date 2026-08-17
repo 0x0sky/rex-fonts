@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Verify redistribution metadata for generated ReX font binaries."""
+
+import argparse
+import sys
+
+from fontTools.ttLib import TTFont
+
+from tools.font_metadata import decoded_name_records, policy_for_path, primary_names
+
+
+def verify(path: str) -> None:
+    policy = policy_for_path(path)
+    if policy is None:
+        raise ValueError("no font metadata policy is defined for {!r}".format(path))
+
+    font = TTFont(path, recalcBBoxes=False, recalcTimestamp=False, lazy=True)
+
+    expected = {
+        1: policy.family_name,
+        2: policy.subfamily_name,
+        4: policy.full_name,
+        6: policy.postscript_name,
+        16: policy.family_name,
+        17: policy.subfamily_name,
+        18: policy.full_name,
+        21: policy.family_name,
+        22: policy.subfamily_name,
+    }
+    for name_id, value in expected.items():
+        actual = decoded_name_records(font["name"], name_id)
+        if not actual or any(item != value for item in actual):
+            raise ValueError(
+                "name ID {} must be {!r}; got {!r}".format(name_id, value, actual)
+            )
+
+    primary = primary_names(font)
+    if any(policy.source_family_marker in value for value in primary):
+        raise ValueError(
+            "modified font still exposes the upstream primary family name: {!r}".format(
+                primary
+            )
+        )
+
+    copyrights = decoded_name_records(font["name"], 0)
+    if not any(policy.copyright_marker in value for value in copyrights):
+        raise ValueError("upstream copyright metadata is missing")
+
+    licenses = decoded_name_records(font["name"], 13)
+    if not any(policy.license_marker in value for value in licenses):
+        raise ValueError("upstream license metadata is missing")
+
+    if "OS/2" in font and font["OS/2"].fsType != 0:
+        raise ValueError(
+            "font has restrictive OS/2 embedding flags: fsType={}".format(
+                font["OS/2"].fsType
+            )
+        )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("fonts", nargs="+")
+    args = parser.parse_args()
+
+    failures = []
+    for path in args.fonts:
+        try:
+            verify(path)
+            print("{}: metadata OK".format(path))
+        except Exception as error:
+            failures.append("{}: {}".format(path, error))
+
+    if failures:
+        for failure in failures:
+            print(failure, file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

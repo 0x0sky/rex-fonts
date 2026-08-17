@@ -1,4 +1,4 @@
-'''
+'''\
 rexify.py
 
 Prepare an OpenType font for use with ReX.  Rexify will look for glyphs that
@@ -11,16 +11,16 @@ import os
 from fontTools.ttLib import TTFont
 from tools.accessible import make_accessible
 from tools.constants import gen_constants
+from tools.font_metadata import apply_identity, policy_for_path
 from tools.glyphs import gen_glyphs
 from tools.kerning import gen_kerning
 from tools.symbols import gen_symbols
 from tools.variants import gen_variants
 
-# TODO: Deleted undesired glyphs.
-# TODO: We need to modify the name/copyright to adhere to SIL license.
+# TODO: Delete undesired glyphs.
 
 
-def rexify(font, out): 
+def rexify(font, out):
     '''
     Rexify font.
 
@@ -29,12 +29,24 @@ def rexify(font, out):
     glyphs are publicly accessible.
 
     This will also generate the required tables for ReX.
+
+    Bundled fonts with a redistribution policy receive a distinct ReX
+    identity before they are saved. This keeps modified fonts distinct
+    from their upstream originals while preserving copyright, trademark
+    and license metadata.
     '''
 
-    # Make glyphs accessible.
     ttfont = TTFont(font, recalcBBoxes=False)
     make_accessible(ttfont)
-    ttfont.save(out + os.path.basename(font))
+
+    policy = policy_for_path(font)
+    if policy is not None:
+        apply_identity(ttfont, policy)
+        output_filename = policy.output_filename
+    else:
+        output_filename = os.path.basename(font)
+
+    ttfont.save(os.path.join(out, output_filename))
 
     gen_constants(ttfont, out)
     gen_glyphs(ttfont, out)
@@ -61,7 +73,7 @@ if __name__ == "__main__":
 
     FONT = sys.argv[1]
     OUT = sys.argv[2]
-    
+
     if not os.path.exists(OUT):
         print("Creating directory:", OUT)
         os.makedirs(OUT)
