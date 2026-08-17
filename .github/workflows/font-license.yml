@@ -2,20 +2,33 @@ name: Font license metadata
 
 on:
   push:
-    branches:
-      - feature/stix2-ofl-compliance
     paths:
       - .github/workflows/font-license.yml
       - rexify.py
       - tools/font_metadata.py
       - tools/normalize_font_metadata.py
       - tools/verify_font_metadata.py
+      - out/stix2/rex-stix2.otf
+      - README.md
+      - LICENSES.md
+      - FONTLOG.md
+  pull_request:
+    paths:
+      - .github/workflows/font-license.yml
+      - rexify.py
+      - tools/font_metadata.py
+      - tools/normalize_font_metadata.py
+      - tools/verify_font_metadata.py
+      - out/stix2/rex-stix2.otf
+      - README.md
+      - LICENSES.md
+      - FONTLOG.md
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  normalize:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,21 +48,12 @@ jobs:
             tools/normalize_font_metadata.py \
             tools/verify_font_metadata.py
 
-      - name: Normalize generated STIX2 metadata
-        run: |
-          python -m tools.normalize_font_metadata out/stix2/rex-stix2.otf
-          python -m tools.verify_font_metadata out/stix2/rex-stix2.otf
+      - name: Verify committed STIX2 metadata
+        run: python -m tools.verify_font_metadata out/stix2/rex-stix2.otf
 
-      - name: Commit normalized font artifact
-        shell: bash
+      - name: Verify normalization is idempotent
         run: |
-          if git diff --quiet -- out/stix2/rex-stix2.otf; then
-            echo "Generated STIX2 artifact already has compliant metadata."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add out/stix2/rex-stix2.otf
-          git commit -m "font: normalize STIX2 derivative metadata"
-          git push
+          mkdir -p /tmp/rex-fonts
+          cp out/stix2/rex-stix2.otf /tmp/rex-fonts/rex-stix2.otf
+          python -m tools.normalize_font_metadata /tmp/rex-fonts/rex-stix2.otf
+          cmp out/stix2/rex-stix2.otf /tmp/rex-fonts/rex-stix2.otf
