@@ -3,10 +3,14 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from fontTools.ttLib import TTFont
 
 from tools.font_metadata import decoded_name_records, policy_for_path, primary_names
+
+
+_LEGAL_NAME_IDS = (0, 7, 13, 14)
 
 
 def verify(path: str) -> None:
@@ -35,19 +39,39 @@ def verify(path: str) -> None:
             )
 
     primary = primary_names(font)
-    if any(policy.source_family_marker in value for value in primary):
+    if any("STIX" in value or "TM Math" in value for value in primary):
         raise ValueError(
-            "modified font still exposes the upstream primary family name: {!r}".format(
+            "modified font still exposes a protected/upstream identity: {!r}".format(
                 primary
             )
         )
 
-    copyrights = decoded_name_records(font["name"], 0)
-    if not any(policy.copyright_marker in value for value in copyrights):
-        raise ValueError("upstream copyright metadata is missing")
+    source_path = Path("master") / policy.source_filename
+    source = TTFont(
+        str(source_path),
+        recalcBBoxes=False,
+        recalcTimestamp=False,
+        lazy=True,
+    )
+    for name_id in _LEGAL_NAME_IDS:
+        expected_legal = decoded_name_records(source["name"], name_id)
+        actual_legal = decoded_name_records(font["name"], name_id)
+        if set(actual_legal) != set(expected_legal):
+            raise ValueError(
+                "legal name ID {} differs from source {!r}: {!r} != {!r}".format(
+                    name_id, source_path, actual_legal, expected_legal
+                )
+            )
 
-    licenses = decoded_name_records(font["name"], 13)
-    if not any(policy.license_marker in value for value in licenses):
+    if not any(
+        policy.copyright_marker in value
+        for value in decoded_name_records(font["name"], 0)
+    ):
+        raise ValueError("upstream copyright metadata is missing")
+    if not any(
+        policy.license_marker in value
+        for value in decoded_name_records(font["name"], 13)
+    ):
         raise ValueError("upstream license metadata is missing")
 
     if "OS/2" in font and font["OS/2"].fsType != 0:

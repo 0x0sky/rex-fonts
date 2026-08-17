@@ -8,6 +8,7 @@ on:
       - tools/font_metadata.py
       - tools/normalize_font_metadata.py
       - tools/verify_font_metadata.py
+      - tools/verify_font_delta.py
       - out/stix2/rex-stix2.otf
       - README.md
       - LICENSES.md
@@ -19,6 +20,7 @@ on:
       - tools/font_metadata.py
       - tools/normalize_font_metadata.py
       - tools/verify_font_metadata.py
+      - tools/verify_font_delta.py
       - out/stix2/rex-stix2.otf
       - README.md
       - LICENSES.md
@@ -46,7 +48,8 @@ jobs:
             rexify.py \
             tools/font_metadata.py \
             tools/normalize_font_metadata.py \
-            tools/verify_font_metadata.py
+            tools/verify_font_metadata.py \
+            tools/verify_font_delta.py
 
       - name: Verify committed STIX2 metadata
         run: python -m tools.verify_font_metadata out/stix2/rex-stix2.otf
@@ -57,3 +60,11 @@ jobs:
           cp out/stix2/rex-stix2.otf /tmp/rex-fonts/rex-stix2.otf
           python -m tools.normalize_font_metadata /tmp/rex-fonts/rex-stix2.otf
           cmp out/stix2/rex-stix2.otf /tmp/rex-fonts/rex-stix2.otf
+
+      - name: Verify cleanup touched metadata only
+        run: |
+          git fetch origin master:refs/remotes/origin/master --depth=1
+          git show origin/master:out/stix2/rex-stix2.otf > /tmp/rex-fonts/rex-stix2-before.otf
+          python -m tools.verify_font_delta \
+            /tmp/rex-fonts/rex-stix2-before.otf \
+            out/stix2/rex-stix2.otf
